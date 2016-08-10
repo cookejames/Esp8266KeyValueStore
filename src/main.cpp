@@ -13,6 +13,7 @@ String readString(bool output) {
         Serial.print(byte);
       }
       if (byte == '\n') {
+        string.trim();
         return string;
       }
       string += byte;

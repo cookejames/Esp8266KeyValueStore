@@ -70,7 +70,9 @@ String KeyValueStore::read(String key) {
     String line = f.readStringUntil('\n');
     if (line.startsWith(search)) {
       f.close();
-      return line.substring(search.length());
+      String value = line.substring(search.length());
+      value.trim();
+      return value;
     }
   }
   f.close();
