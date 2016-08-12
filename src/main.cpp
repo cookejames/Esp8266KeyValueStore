@@ -37,7 +37,7 @@ void enterUserValue(String key) {
   Serial.printf("Set '%s': \n", key.c_str());
   String input = readString(true);
 
-  if (input.length() == 1) {
+  if (input.length() == 0) {
     Serial.println("Skipping...");
     return;
   }
