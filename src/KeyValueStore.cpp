@@ -108,10 +108,6 @@ void KeyValueStore::output() {
   Serial.println();
 }
 
-String KeyValueStore::read(String key) {
-  return readString(key);
-}
-
 String KeyValueStore::readString(String key) {
   String json = readJson();
   StaticJsonBuffer<300> jsonBuffer;

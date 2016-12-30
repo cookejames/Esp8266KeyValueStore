@@ -9,7 +9,6 @@ class KeyValueStore
 {
   public:
     KeyValueStore();
-    String read(String);
     String readString(String);
     int readInt(String);
     void output();
