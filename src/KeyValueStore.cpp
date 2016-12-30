@@ -1,80 +1,135 @@
 #include "KeyValueStore.h"
 
 KeyValueStore::KeyValueStore() {
-  FILENAME = "/KeyValueStore";
+  FILENAME_OLD = "/KeyValueStore";
+  FILENAME_JSON = "/KeyValueStoreJson";
   SPIFFS.begin();
 }
 
-bool KeyValueStore::clear() {
-  if (!SPIFFS.exists(FILENAME)) {
+bool KeyValueStore::migrate() {
+  if (!SPIFFS.exists(FILENAME_OLD)) {
     return true;
   }
-  return SPIFFS.remove(FILENAME);
-}
+  StaticJsonBuffer<300> jsonBuffer;
+  JsonObject& root = jsonBuffer.createObject();
 
-bool KeyValueStore::write(String key, String value) {
-  File f = SPIFFS.open(FILENAME, "r");
-
-  //Read all the file into a buffer
-  String buffer[100];
-  int lineNo = 0;
-  bool replaced = false;
-  String search = key + "=";
-  while(f && f.available()) {
+  File f = SPIFFS.open(FILENAME_OLD, "r");
+  if (!f) {
+    return false;
+  }
+  while(f.available()) {
     String line = f.readStringUntil('\n');
-    //Replace any lines with the key to be written
-    if (line.startsWith(search)) {
-      buffer[lineNo] = key + "=" + value;
-      replaced = true;
-    } else {
-      buffer[lineNo] = line;
+    int separator = line.indexOf("=");
+    if (separator > -1) {
+      String key = line.substring(0, separator);
+      String value = line.substring(separator + 1);
+      value.trim();
+      root[key] = value;
     }
-    lineNo++;
-  }
-  //If the key doesn't exist add it
-  if (!replaced) {
-    buffer[lineNo] = key + "=" + value;
   }
   f.close();
-
-  //Write the buffer backk to the file
-  f = SPIFFS.open(FILENAME, "w");
-  for (int i = 0; i <= lineNo; i++) {
-    f.println(buffer[i]);
-  }
-  f.close();
-
+  clear(FILENAME_JSON);
+  File fJson = SPIFFS.open(FILENAME_JSON, "w");
+  root.printTo(fJson);
+  fJson.close();
+  Serial.println("Migrated KeyValueStore to JSON:");
+  root.prettyPrintTo(Serial);
+  Serial.println();
+  clear(FILENAME_OLD);
   return true;
 }
 
-void KeyValueStore::output() {
-  File f = SPIFFS.open(FILENAME, "r");
-  if (!f) {
-    return;
+// Delete a file
+bool KeyValueStore::clear(String filename) {
+  if (!SPIFFS.exists(filename)) {
+    return true;
   }
+  return SPIFFS.remove(filename);
+}
 
+// Remove existing data
+bool KeyValueStore::clear() {
+  return clear(FILENAME_JSON) && clear(FILENAME_OLD);
+}
+
+bool KeyValueStore::write(String key, String value) {
+  String json = readJson();
+  StaticJsonBuffer<300> jsonBuffer;
+  JsonObject& root = jsonBuffer.parseObject(json);
+  if (!root.success()) {
+    Serial.println("parseObject() failed");
+    return false;
+  }
+  root.set(key, value);
+  File file = SPIFFS.open(FILENAME_JSON, "w");
+  root.printTo(file);
+  file.close();
+  return true;
+}
+
+bool KeyValueStore::write(String key, int value) {
+  String json = readJson();
+  StaticJsonBuffer<300> jsonBuffer;
+  JsonObject& root = jsonBuffer.parseObject(json);
+  if (!root.success()) {
+    Serial.println("parseObject() failed");
+    return false;
+  }
+  root.set(key, value);
+  File file = SPIFFS.open(FILENAME_JSON, "w");
+  root.printTo(file);
+  file.close();
+  return true;
+}
+
+// Read JSON from file as a string
+String KeyValueStore::readJson() {
+  File f = SPIFFS.open(FILENAME_JSON, "r");
+
+  String json = "";
   while(f.available()) {
-    String line = f.readStringUntil('\n');
-    Serial.println(line);
+    json += f.readString();
   }
   f.close();
+  return json;
+}
+
+// Output JSON to Serial
+void KeyValueStore::output() {
+  migrate();
+  String json = readJson();
+  StaticJsonBuffer<300> jsonBuffer;
+  JsonObject& root = jsonBuffer.parseObject(json);
+  if (!root.success()) {
+    Serial.println("parseObject() failed");
+    return;
+  }
+  root.prettyPrintTo(Serial);
+  Serial.println();
 }
 
 String KeyValueStore::read(String key) {
-  File f = SPIFFS.open(FILENAME, "r");
-  if (!f) {
+  return readString(key);
+}
+
+String KeyValueStore::readString(String key) {
+  String json = readJson();
+  StaticJsonBuffer<300> jsonBuffer;
+  JsonObject& root = jsonBuffer.parseObject(json);
+  if (!root.success()) {
+    Serial.println("parseObject() failed");
     return "";
   }
-  String search = key + "=";
-  while(f.available()) {
-    String line = f.readStringUntil('\n');
-    if (line.startsWith(search)) {
-      f.close();
-      String value = line.substring(search.length());
-      value.trim();
-      return value;
-    }
+  return root.get<String>(key);
+}
+
+int KeyValueStore::readInt(String key) {
+  String json = readJson();
+  StaticJsonBuffer<300> jsonBuffer;
+  JsonObject& root = jsonBuffer.parseObject(json);
+  if (!root.success()) {
+    Serial.println("parseObject() failed");
+    return 0;
   }
-  f.close();
-  return "";
+  return root.get<int>(key);
 }

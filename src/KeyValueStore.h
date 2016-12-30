@@ -3,16 +3,24 @@
 
 #include "Arduino.h"
 #include "FS.h"
+#include "ArduinoJson.h"
 
 class KeyValueStore
 {
   public:
     KeyValueStore();
     String read(String);
+    String readString(String);
+    int readInt(String);
     void output();
     bool write(String, String);
+    bool write(String, int);
     bool clear();
   private:
-    String FILENAME;
+    bool clear(String);
+    bool migrate();
+    String readJson();
+    String FILENAME_OLD;
+    String FILENAME_JSON;
 };
 #endif
